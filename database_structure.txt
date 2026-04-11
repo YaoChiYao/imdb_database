@@ -1,0 +1,42 @@
+2 Database Property
+2.1 Entity and Attribute
+There are several tables. The main table is Movie, with movie id, the primary
+key, and director id, the foreign key. It has many attributes, including series
+title, released year, certificate, runtime, IMDB rating, meta score, votes, gross,
+overview, and poster link. The second table is Director, with primary key
+director id and attribute director name. The thrid table is Actor, with primary
+key actor id and attribute actor name. The final entity table is Genre, with
+primary key genre id and attribute genre, telling the type of each movie.
+There are also two relation tables. Movie-Actor links movie id and actor id
+and Movie-Genre links movie id and genre id.
+2.2 Relationships
+• Movie — Director (Many to One)
+– Each movie has one director
+– One director could direct many movies
+• Movie — Actor (Many to Many)
+– One movie could have many actors
+1
+– One actor could act many movies
+• Movie — Genre (Many to Many)
+– One movie could have more than one genres
+– One genre could contain many movies
+2.3 Constraints
+• Entity Integrity
+– Each table has primary key.
+• Referential Integrity
+– movie.director id → director.director id
+– M ovie Actor.movie id → Movie.movie id
+– M ovie Actor.actor id → Actor.actor id
+• Domain Constraints
+– imdb rating ∈ [0, 10]
+– meta score ∈ [0, 100]
+– runtime > 0
+– gross ≥ 0
+• Key Constraints
+– M ovie Actor(movie id, actor id) is composite key.
+– M ovie Genre(movie id, genre id) is composite key.
+2.4 Norm
+Through exploding Genre in the origin dataframe, all fields are atomic, sat-
+isfying 1NF. By splitting into multiple tables, there is no partial dependency,
+suggesting it is 2NF.Finally, without transitive dependencies, the schema is in
+Third Normal Form, eliminating redundancy and update anomalies.

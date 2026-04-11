@@ -1,0 +1,385 @@
+IMDB Database - operate_funcs.py 功能说明文档
+============================================================
+
+【快速概览】
+------------
+MovieDatabase 类提供 50+ 个数据库操作方法，覆盖：
+
+1. 连接管理 (3): close(), commit(), rollback()
+2. Movie 表 (14): 增删改查、按导演/演员/类型/年份/评分范围查询、关键词搜索、获取详情
+3. Director 表 (8): 增删改查、搜索、统计信息
+4. Actor 表 (7): 增删改查、搜索、统计信息
+5. Genre 表 (7): 增删改查、统计信息
+6. 关联表 (6): Movie_Actor 与 Movie_Genre 的增删查
+7. 复杂查询 (4): 多条件筛选、年度统计、票房排行、导演-演员合作分析
+
+【快速开始】
+------------
+db = MovieDatabase()                    # 初始化连接
+db.get_top_movies(10)                   # 获取Top10电影
+db.search_movies_by_keyword("Batman")   # 搜索电影
+db.get_movie_with_details(movie_id)     # 获取电影完整信息（含导演/演员/类型）
+db.close()                              # 关闭连接
+
+============================================================
+
+数据库: movies_db (MySQL)
+主要表: Movie, Director, Actor, Genre, Movie_Actor, Movie_Genre
+
+
+一、MovieDatabase 类初始化
+---------------------------
+MovieDatabase(host='localhost', user='root', password='password', database='movies_db')
+    初始化数据库连接，返回 MovieDatabase 对象。
+    使用示例:
+        db = MovieDatabase()
+        db = MovieDatabase(host='127.0.0.1', user='admin', password='xxx', database='movies_db')
+
+
+二、连接管理
+---------------------------
+1. db.close()
+    关闭数据库连接和游标。
+
+2. db.commit()
+    提交当前事务。
+
+3. db.rollback()
+    回滚当前事务。
+
+
+三、Movie 表操作
+---------------------------
+【查询】
+4. db.get_all_movies(limit=None, offset=0)
+    获取所有电影列表，默认按 IMDB 评分降序排列。
+    参数:
+        limit  - 返回数量限制 (可选)
+        offset - 偏移量 (可选，默认0)
+    返回: list[dict]
+    示例: db.get_all_movies(limit=10, offset=0)
+
+5. db.get_movie_by_id(movie_id)
+    根据电影 ID 查询电影详情。
+    参数: movie_id (int)
+    返回: dict 或 None
+
+6. db.get_movies_by_director(director_name)
+    查询某个导演的所有电影，按评分降序排列。
+    参数: director_name (str)
+    返回: list[dict]
+    示例: db.get_movies_by_director("Christopher Nolan")
+
+7. db.get_movies_by_actor(actor_name)
+    查询某个演员参演的所有电影，按评分降序排列。
+    参数: actor_name (str)
+    返回: list[dict]
+    示例: db.get_movies_by_actor("Leonardo DiCaprio")
+
+8. db.get_movies_by_genre(genre)
+    查询某个类型的所有电影，按评分降序排列。
+    参数: genre (str)
+    返回: list[dict]
+    示例: db.get_movies_by_genre("Drama")
+
+9. db.get_movies_by_year(year)
+    查询某年发布的所有电影，按评分降序排列。
+    参数: year (int)
+    返回: list[dict]
+    示例: db.get_movies_by_year(2010)
+
+10. db.get_movies_by_year_range(start_year, end_year)
+    查询某个年份范围内的电影。
+    参数: start_year (int), end_year (int)
+    返回: list[dict]
+    示例: db.get_movies_by_year_range(2000, 2010)
+
+11. db.get_movies_by_rating_range(min_rating, max_rating)
+    查询某个评分范围内的电影。
+    参数: min_rating (float), max_rating (float)
+    返回: list[dict]
+    示例: db.get_movies_by_rating_range(8.0, 9.0)
+
+12. db.get_top_movies(n=10)
+    获取评分最高的 N 部电影。
+    参数: n (int，默认10)
+    返回: list[dict]
+    示例: db.get_top_movies(20)
+
+13. db.search_movies_by_keyword(keyword)
+    根据关键词搜索电影标题或简介。
+    参数: keyword (str)
+    返回: list[dict]
+    示例: db.search_movies_by_keyword("Batman")
+
+14. db.get_movie_with_details(movie_id)
+    获取电影完整详情，包括导演、演员列表、类型列表。
+    参数: movie_id (int)
+    返回: dict (包含额外字段: director, actors[], genres[])
+    示例:
+        detail = db.get_movie_with_details(1)
+        print(detail['title'])
+        print(detail['director'])
+        print(detail['actors'])   # 演员名列表
+        print(detail['genres'])   # 类型名列表
+
+【插入】
+15. db.add_movie(movie_data)
+    添加新电影（字典参数）。
+    参数 movie_data 字典需包含字段:
+        movie_id, director_id, title, year, certificate,
+        runtime, imdb_rating, meta_score, votes, gross, overview, poster_link
+    返回: lastrowid
+
+16. db.add_movie_simple(movie_id, director_id, title, year, certificate,
+                         runtime, imdb_rating, meta_score, votes,
+                         gross, overview, poster_link)
+    简化版添加电影（逐个传参）。
+
+【更新】
+17. db.update_movie_rating(movie_id, new_rating)
+    更新电影评分。
+    参数: movie_id (int), new_rating (float)
+    返回: 受影响的行数
+
+18. db.update_movie(movie_id, update_data)
+    更新电影信息（灵活更新多个字段）。
+    参数:
+        movie_id    - 电影ID
+        update_data - 字典，键为字段名，值为新值
+    返回: 受影响的行数
+    示例: db.update_movie(1, {'imdb_rating': 9.5, 'year': 2020})
+
+19. db.update_movie_director(movie_id, new_director_id)
+    更新电影的导演。
+    参数: movie_id (int), new_director_id (int)
+    返回: 受影响的行数
+
+【删除】
+20. db.delete_movie(movie_id)
+    删除电影及其关联记录（自动删除 Movie_Actor 和 Movie_Genre 中的关联）。
+    参数: movie_id (int)
+    返回: 受影响的行数
+
+
+四、Director 表操作
+---------------------------
+【查询】
+21. db.get_all_directors()
+    获取所有导演列表，按名称排序。
+    返回: list[dict]
+
+22. db.get_director_by_id(director_id)
+    根据 ID 获取导演信息。
+    参数: director_id (int)
+    返回: dict 或 None
+
+23. db.get_director_by_name(director_name)
+    根据名称获取导演信息。
+    参数: director_name (str)
+    返回: dict 或 None
+
+24. db.search_directors(keyword)
+    根据关键词搜索导演名称。
+    参数: keyword (str)
+    返回: list[dict]
+
+【插入/更新/删除】
+25. db.add_director(director_name, director_id=None)
+    添加导演。若未指定 director_id，则由数据库自动生成。
+    参数: director_name (str), director_id (int，可选)
+    返回: lastrowid
+
+26. db.update_director(director_id, new_name)
+    更新导演名称。
+    参数: director_id (int), new_name (str)
+    返回: 受影响的行数
+
+27. db.delete_director(director_id)
+    删除导演（要求该导演下没有关联电影，否则抛出 ValueError）。
+    参数: director_id (int)
+    返回: 受影响的行数
+
+【统计】
+28. db.get_director_stats(director_id=None)
+    获取导演统计信息。
+    参数: director_id (int，可选)。不传则返回所有导演的统计。
+    返回: dict (单个) 或 list[dict] (全部)
+    字段: director_name, movie_count, avg_rating, max_rating(仅单个时)
+    示例:
+        db.get_director_stats(1)      # 单个导演
+        db.get_director_stats()       # 全部导演
+
+
+五、Actor 表操作
+---------------------------
+【查询】
+29. db.get_all_actors()
+    获取所有演员列表，按名称排序。
+    返回: list[dict]
+
+30. db.get_actor_by_id(actor_id)
+    根据 ID 获取演员信息。
+    参数: actor_id (int)
+    返回: dict 或 None
+
+31. db.get_actor_by_name(actor_name)
+    根据名称获取演员信息。
+    参数: actor_name (str)
+    返回: dict 或 None
+
+32. db.search_actors(keyword)
+    根据关键词搜索演员名称。
+    参数: keyword (str)
+    返回: list[dict]
+
+【插入/更新/删除】
+33. db.add_actor(actor_name, actor_id=None)
+    添加演员。若未指定 actor_id，则由数据库自动生成。
+    参数: actor_name (str), actor_id (int，可选)
+    返回: lastrowid
+
+34. db.update_actor(actor_id, new_name)
+    更新演员名称。
+    参数: actor_id (int), new_name (str)
+    返回: 受影响的行数
+
+35. db.delete_actor(actor_id)
+    删除演员及其 Movie_Actor 关联记录。
+    参数: actor_id (int)
+    返回: 受影响的行数
+
+【统计】
+36. db.get_actor_stats(actor_id=None)
+    获取演员统计信息。
+    参数: actor_id (int，可选)。不传则返回参演电影数前20的演员。
+    返回: dict (单个) 或 list[dict] (前20)
+    字段: actor_name, movie_count, avg_rating
+
+
+六、Genre 表操作
+---------------------------
+【查询】
+37. db.get_all_genres()
+    获取所有类型列表，按名称排序。
+    返回: list[dict]
+
+38. db.get_genre_by_id(genre_id)
+    根据 ID 获取类型信息。
+    参数: genre_id (int)
+    返回: dict 或 None
+
+39. db.get_genre_by_name(genre_name)
+    根据名称获取类型信息。
+    参数: genre_name (str)
+    返回: dict 或 None
+
+【插入/更新/删除】
+40. db.add_genre(genre, genre_id=None)
+    添加类型。若未指定 genre_id，则由数据库自动生成。
+    参数: genre (str), genre_id (int，可选)
+    返回: lastrowid
+
+41. db.update_genre(genre_id, new_genre)
+    更新类型名称。
+    参数: genre_id (int), new_genre (str)
+    返回: 受影响的行数
+
+42. db.delete_genre(genre_id)
+    删除类型及其 Movie_Genre 关联记录。
+    参数: genre_id (int)
+    返回: 受影响的行数
+
+【统计】
+43. db.get_genre_stats()
+    获取各类型电影统计（电影数、平均评分）。
+    返回: list[dict]
+    字段: genre_id, genre, movie_count, avg_rating
+    排序: 按 movie_count 降序
+
+
+七、Movie_Actor 关联表操作
+---------------------------
+44. db.add_movie_actor(movie_id, actor_id)
+    为电影添加演员关联。
+    参数: movie_id (int), actor_id (int)
+    返回: 受影响的行数
+
+45. db.remove_movie_actor(movie_id, actor_id=None)
+    从电影中移除演员关联。
+    参数:
+        movie_id - 电影ID
+        actor_id - 演员ID。若为 None，则移除该电影所有演员关联
+    返回: 受影响的行数
+    示例:
+        db.remove_movie_actor(1, 5)   # 移除指定演员
+        db.remove_movie_actor(1)      # 移除该电影所有演员
+
+46. db.get_movie_actors(movie_id)
+    获取某部电影的所有演员信息。
+    参数: movie_id (int)
+    返回: list[dict]
+
+47. db.get_actor_movies(actor_id)
+    获取某演员参演的所有电影。
+    参数: actor_id (int)
+    返回: list[dict] (按评分降序)
+
+
+八、Movie_Genre 关联表操作
+---------------------------
+48. db.add_movie_genre(movie_id, genre_id)
+    为电影添加类型关联。
+    参数: movie_id (int), genre_id (int)
+    返回: 受影响的行数
+
+49. db.remove_movie_genre(movie_id, genre_id=None)
+    从电影中移除类型关联。
+    参数:
+        movie_id - 电影ID
+        genre_id - 类型ID。若为 None，则移除该电影所有类型关联
+    返回: 受影响的行数
+    示例:
+        db.remove_movie_genre(1, 3)   # 移除指定类型
+        db.remove_movie_genre(1)      # 移除该电影所有类型
+
+50. db.get_movie_genres(movie_id)
+    获取某部电影的所有类型信息。
+    参数: movie_id (int)
+    返回: list[dict]
+
+
+九、复杂查询
+---------------------------
+51. db.get_movies_with_filters(year=None, genre=None, min_rating=None,
+                                director=None, actor=None, limit=50)
+    多条件组合筛选电影。
+    参数 (全部为可选):
+        year       - 年份 (int)
+        genre      - 类型 (str)
+        min_rating - 最低评分 (float)
+        director   - 导演名 (str)
+        actor      - 演员名 (str)
+        limit      - 返回数量限制 (int，默认50)
+    返回: list[dict] (包含 director_name 字段)
+    示例:
+        db.get_movies_with_filters(year=2010, genre="Drama", min_rating=8.0, limit=10)
+
+52. db.get_yearly_stats()
+    获取每年电影统计信息。
+    返回: list[dict]
+    字段: year, movie_count, avg_rating, max_rating
+    排序: 按年份降序
+
+53. db.get_top_grossing_movies(n=10)
+    获取票房最高的 N 部电影。
+    参数: n (int，默认10)
+    返回: list[dict]
+
+54. db.get_frequent_collaborations(min_movies=2)
+    获取频繁合作的导演-演员组合（合作次数 >= min_movies）。
+    参数: min_movies (int，默认2)
+    返回: list[dict]
+    字段: director_name, actor_name, movie_count
+    排序: 按 movie_count 降序
+
