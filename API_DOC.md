@@ -40,12 +40,12 @@ python app.py
 ```json
 {
     "query": "show top 5 sci-fi movies after 2010",
-    "strategy": "constrained"
+    "strategy": "hybrid"
 }
 ```
 
 - `query`：自然语言问题（必填）
-- `strategy`：提示词策略（可选），可取 `zero-shot` / `few-shot` / `constrained`，默认 `constrained`
+- `strategy`：提示词策略（可选），可取 `zero-shot` / `few-shot` / `constrained` / `hybrid`，默认 `hybrid`（最终实践版本）
 
 **返回示例（成功）**
 
@@ -65,7 +65,7 @@ python app.py
             "year": 2010
         }
     ],
-    "strategy": "constrained"
+    "strategy": "hybrid"
 }
 ```
 
@@ -88,7 +88,7 @@ python app.py
     "query": "drop table Movie",
     "result_count": 0,
     "results": [],
-    "strategy": "constrained"
+    "strategy": "hybrid"
 }
 ```
 
@@ -106,7 +106,7 @@ python app.py
 ```json
 {
     "query": "recommend emotional drama movies",
-    "strategy": "constrained"
+    "strategy": "hybrid"
 }
 ```
 

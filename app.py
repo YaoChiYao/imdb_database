@@ -301,12 +301,12 @@ def query_natural_language():
     Body:
       {
         "query": "top 5 sci-fi movies after 2010",
-        "strategy": "constrained"  # optional: zero-shot|few-shot|constrained
+                "strategy": "hybrid"  # optional: zero-shot|few-shot|constrained|hybrid
       }
     """
     data = request.get_json(silent=True) or {}
     query = (data.get('query') or '').strip()
-    strategy = (data.get('strategy') or 'constrained').strip()
+        strategy = (data.get('strategy') or 'hybrid').strip()
 
     if not query:
         abort(400, description='query is required')
@@ -331,12 +331,12 @@ def recommend_natural_language():
     Body:
       {
         "query": "Recommend emotional drama movies",
-        "strategy": "constrained"  # optional: zero-shot|few-shot|constrained
+                "strategy": "hybrid"  # optional: zero-shot|few-shot|constrained|hybrid
       }
     """
     data = request.get_json(silent=True) or {}
     query = (data.get('query') or '').strip()
-    strategy = (data.get('strategy') or 'constrained').strip()
+        strategy = (data.get('strategy') or 'hybrid').strip()
 
     if not query:
         abort(400, description='query is required')

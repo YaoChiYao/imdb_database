@@ -47,6 +47,33 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 	- fallback validator remains available when `sqlglot` is not installed
 	- report/demo files prepared: `REPORT_BLUEPRINT_LLM.md`, `DEMO_BENCHMARK.md`
 
+### OpenRouter Stability Iteration (2026-04-12)
+- Objective: rerun evaluation on OpenRouter free model and harden test pipeline against API jitter/quota behavior
+- Completed:
+	- switched to `LLM_PROVIDER=openrouter` and `LLM_MODEL=minimax/minimax-m2.5:free`
+	- added local `.env` auto-load in service init to prevent missing key during CLI evaluation
+	- updated evaluation runner with:
+		- per-case pacing (`--case-delay-sec`)
+		- strategy pacing (`--strategy-delay-sec`)
+		- rate-limit-aware case retries (`--max-case-retries`, `--rate-limit-wait-sec`)
+		- per-record `attempts` trace in JSONL outputs
+	- added fast-fail rule for non-recoverable OpenRouter daily free quota 429 to avoid long no-op retries
+- Observed blocker:
+	- current provider-side free quota is exhausted (`Rate limit exceeded: free-models-per-day`), so few-shot/constrained final runs are fully blocked despite pipeline retries
+
+### Gemini Regression Recovery (2026-04-12)
+- Objective: rerun full benchmark on Gemini after restoring `GEMINI_API_KEY`
+- Completed:
+	- injected `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3-flash-preview`
+	- executed full strategy regression with existing evaluator
+- Results:
+	- zero-shot: 9/12 success, executable rate 75.00%, avg latency 10038 ms
+	- few-shot: 10/12 success, executable rate 83.33%, avg latency 10164 ms
+	- constrained: 10/12 success, executable rate 83.33%, avg latency 15660 ms
+- Top errors:
+	- `Only SELECT (or WITH...SELECT) queries are allowed.`
+	- `no such column: T`
+
 ### V1 (baseline)
 - Objective:
 - Key instructions:
@@ -79,6 +106,13 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 
 | Prompt Version | Strategy | #Cases | Executable Rate | Correctness Rate | Avg Latency (ms) | Notes |
 |---|---|---:|---:|---:|---:|---|
-| V1 | zero-shot | 12 | 50.00% | TBD | 10195 | Gemini 3 Flash run; top failure = API read timeout |
-| V2 | few-shot | 12 | 33.33% | TBD | 14137 | Gemini 3 Flash run; top failure = API read timeout |
-| V3 | constrained | 12 | 25.00% | TBD | 19131 | Gemini 3 Flash run; top failure = API read timeout |
+| V1 | zero-shot | 12 | 75.00% | TBD | 10038 | Gemini regression rerun after key recovery |
+| V2 | few-shot | 12 | 83.33% | TBD | 10164 | Gemini regression rerun after key recovery |
+| V3 | constrained | 12 | 83.33% | TBD | 15660 | Gemini regression rerun after key recovery |
+
+## Final Version Check (Requested)
+
+| Target | #Cases | Executable Rate | Avg Latency (ms) | Output File | Notes |
+|---|---:|---:|---:|---|---|
+| few-shot final | 12 | 0.00% | 9832 | `eval_results_few-shot_final.jsonl` | blocked by OpenRouter free daily quota (429) |
+| constrained final | 12 | 0.00% | 9906 | `eval_results_constrained_final.jsonl` | blocked by OpenRouter free daily quota (429) |

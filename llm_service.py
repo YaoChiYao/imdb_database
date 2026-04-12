@@ -123,6 +123,27 @@ LIMIT 50;
 """.strip()
 
 
+RECOMMENDATION_EXAMPLES = """
+Q: Recommend 5 emotional drama movies with high rating.
+SQL: SELECT m.movie_id, m.title, m.year, m.imdb_rating, m.votes
+FROM Movie m
+JOIN Movie_Genre mg ON m.movie_id = mg.movie_id
+JOIN Genre g ON mg.genre_id = g.genre_id
+WHERE g.genre = 'Drama'
+ORDER BY m.imdb_rating DESC, m.votes DESC
+LIMIT 5;
+
+Q: I like mind-bending sci-fi movies similar to Inception.
+SQL: SELECT m.movie_id, m.title, m.year, m.imdb_rating, m.votes
+FROM Movie m
+JOIN Movie_Genre mg ON m.movie_id = mg.movie_id
+JOIN Genre g ON mg.genre_id = g.genre_id
+WHERE g.genre = 'Sci-Fi' AND m.title != 'Inception'
+ORDER BY m.imdb_rating DESC, m.votes DESC
+LIMIT 10;
+""".strip()
+
+
 SEMANTIC_HINTS = """
 Ranking intent hints:
 - "highest rating", "top rated", "best" => ORDER BY imdb_rating DESC, then votes DESC.
@@ -304,12 +325,21 @@ class LLMQueryService:
             else "User asks for database retrieval. Generate accurate SQL for the request."
         )
 
+        recommendation_rules = (
+            "Recommendation-specific constraints:\n"
+            "- Always return Movie rows (movie_id, title, year, imdb_rating).\n"
+            "- Use explicit table aliases m, d, g, mg, ma only when declared in FROM/JOIN.\n"
+            "- Do not emit placeholders like T/T1/T2 unless declared in FROM/JOIN.\n"
+            "- Output SQL only, never natural-language explanation.\n"
+        ) if recommendation else ""
+
         if strategy == "zero-shot":
             return (
                 f"{SCHEMA_CONTEXT}\n\n"
                 f"Context tokens:\n{token_context}\n\n"
                 f"Semantic hints:\n{SEMANTIC_HINTS}\n\n"
                 f"Rules: {base_rules}\n"
+                f"{recommendation_rules}"
                 f"Task: {task_hint}\n"
                 f"User query: {query}\n"
             )
@@ -321,6 +351,29 @@ class LLMQueryService:
                 f"Semantic hints:\n{SEMANTIC_HINTS}\n\n"
                 f"Rules: {base_rules}\n\n"
                 f"Examples:\n{FEW_SHOT_EXAMPLES}\n\n"
+                f"{('Recommendation examples:\n' + RECOMMENDATION_EXAMPLES + '\n\n') if recommendation else ''}"
+                f"{recommendation_rules}"
+                f"Task: {task_hint}\n"
+                f"User query: {query}\n"
+            )
+
+        if strategy == "hybrid":
+            return (
+                f"{SCHEMA_CONTEXT}\n\n"
+                f"Context tokens:\n{token_context}\n\n"
+                f"Semantic hints:\n{SEMANTIC_HINTS}\n\n"
+                "Hard constraints:\n"
+                "1) Only SELECT queries are allowed.\n"
+                "2) No schema modification and no data modification.\n"
+                "3) Single statement only (no multiple statements).\n"
+                "4) Use explicit JOIN conditions when joining tables.\n"
+                "5) Add ORDER BY for ranking requests.\n"
+                "6) Add LIMIT 50 if user does not provide a smaller limit.\n"
+                "7) Return plain SQL only.\n"
+                "8) Prefer stable aliases m, d, g, mg, ma over generic T/T1/T2.\n\n"
+                f"Examples:\n{FEW_SHOT_EXAMPLES}\n\n"
+                f"{('Recommendation examples:\n' + RECOMMENDATION_EXAMPLES + '\n\n') if recommendation else ''}"
+                f"{recommendation_rules}"
                 f"Task: {task_hint}\n"
                 f"User query: {query}\n"
             )
@@ -339,6 +392,8 @@ class LLMQueryService:
             "6) Add LIMIT 50 if user does not provide a smaller limit.\n"
             "7) Return plain SQL only.\n\n"
             f"Examples:\n{FEW_SHOT_EXAMPLES}\n\n"
+            f"{('Recommendation examples:\n' + RECOMMENDATION_EXAMPLES + '\n\n') if recommendation else ''}"
+            f"{recommendation_rules}"
             f"Task: {task_hint}\n"
             f"User query: {query}\n"
         )
@@ -359,6 +414,8 @@ class LLMQueryService:
             "You are in SQL self-repair mode. Rewrite a failed SQL query using the database context.\n"
             "Return SQL only, one statement, SQLite dialect.\n"
             "Must be read-only and safe.\n\n"
+            "Do not emit placeholder aliases like T/T1/T2 unless they are declared in FROM/JOIN.\n"
+            "Prefer explicit aliases m/d/g/mg/ma.\n\n"
             f"{SCHEMA_CONTEXT}\n\n"
             f"Context tokens:\n{self.context_tokens}\n\n"
             f"Task type: {task_hint}\n"
@@ -413,6 +470,8 @@ class LLMQueryService:
                 raise LLMServiceError(f"Unsupported LLM_PROVIDER: {self.provider}")
             except LLMServiceError as e:
                 last_error = e
+                if not self._is_retryable_llm_error(e):
+                    break
                 if attempt >= self.max_api_retries:
                     break
                 # Exponential backoff for transient 5xx/timeout jitter.
@@ -420,6 +479,18 @@ class LLMQueryService:
                 time.sleep(sleep_s)
 
         raise LLMServiceError(f"LLM call failed after retries: {last_error}")
+
+    def _is_retryable_llm_error(self, err: Exception) -> bool:
+        text = str(err).lower()
+        if "timeout" in text or "network error" in text or "temporarily unavailable" in text:
+            return True
+        if "http error: 429" in text and "free-models-per-day" in text:
+            return False
+        if "http error: 429" in text and "rate limit" in text:
+            return True
+        if "http error: 5" in text:
+            return True
+        return False
 
     def _call_openrouter(self, prompt: str) -> str:
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -520,6 +591,15 @@ class LLMQueryService:
         code_match = re.search(r"```\s*(.*?)```", model_output, re.DOTALL)
         if code_match:
             return code_match.group(1).strip()
+
+        # Fallback: extract first SELECT/WITH statement from mixed text output.
+        stmt_match = re.search(r"\b(select|with)\b[\s\S]*", model_output, re.IGNORECASE)
+        if stmt_match:
+            candidate = stmt_match.group(0).strip()
+            semi = candidate.find(";")
+            if semi != -1:
+                candidate = candidate[: semi + 1]
+            return candidate.strip()
 
         return model_output.strip()
 
