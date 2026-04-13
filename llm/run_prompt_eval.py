@@ -4,7 +4,14 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from llm_service import LLMQueryService, LLMServiceError, SQLValidationError
+try:
+    from llm.llm_service import LLMQueryService, LLMServiceError, SQLValidationError
+except ModuleNotFoundError:
+    # Allow direct execution via: python3 llm/run_prompt_eval.py
+    from llm_service import LLMQueryService, LLMServiceError, SQLValidationError
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 CASE_SQL_HEURISTICS = {
@@ -282,12 +289,12 @@ def write_markdown_summary(rows, path: Path, strategy_records):
 
 def main():
     parser = argparse.ArgumentParser(description="Run NL2SQL prompt strategy evaluation.")
-    parser.add_argument("--eval-file", default="nl2sql_eval_set.json")
+    parser.add_argument("--eval-file", default=str(BASE_DIR / "nl2sql_eval_set.json"))
     parser.add_argument("--strategy", default="hybrid", choices=["zero-shot", "few-shot", "constrained", "hybrid"])
     parser.add_argument("--all-strategies", action="store_true")
     parser.add_argument("--db", default="movies.db")
     parser.add_argument("--out", default=None)
-    parser.add_argument("--summary-out", default="prompt_eval_summary.md")
+    parser.add_argument("--summary-out", default=str(BASE_DIR / "prompt_eval_summary.md"))
     parser.add_argument("--case-delay-sec", type=float, default=1.5)
     parser.add_argument("--strategy-delay-sec", type=float, default=8.0)
     parser.add_argument("--max-case-retries", type=int, default=1)
@@ -319,7 +326,11 @@ def main():
         summary_rows.append(summary)
         strategy_records[strategy] = records
 
-        out_file = Path(args.out) if args.out and len(strategies) == 1 else Path(f"eval_results_{strategy}.jsonl")
+        out_file = (
+            Path(args.out)
+            if args.out and len(strategies) == 1
+            else BASE_DIR / f"eval_results_{strategy}.jsonl"
+        )
         write_jsonl(records, out_file)
         output_files.append(str(out_file))
 

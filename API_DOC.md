@@ -8,19 +8,19 @@
 ## 启动说明
 
 ```bash
-pip install flask flask-cors sqlglot
-export LLM_PROVIDER="openrouter"
-export OPENROUTER_API_KEY="your_openrouter_key"
-export LLM_MODEL="minimax/minimax-m2.5:free"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# fill GEMINI_API_KEY in .env
 python app.py
 ```
 
 服务默认运行在 `http://127.0.0.1:7777`，debug 模式开启。
 
 说明：
-- 推荐使用 OpenRouter：`LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY`。
-- 当前默认模型可设置为 `LLM_MODEL=minimax/minimax-m2.5:free`。
-- 兼容 Gemini：当 `LLM_PROVIDER=gemini` 时读取 `GEMINI_API_KEY`，模型可用 `LLM_MODEL` 或 `GEMINI_MODEL`。
+- 推荐使用 Gemini：`LLM_PROVIDER=gemini` + `GEMINI_API_KEY`。
+- 当前默认模型可设置为 `LLM_MODEL=gemini-3-flash-preview`（或 `GEMINI_MODEL`）。
 - 可通过 `LLM_MAX_RETRIES` 与 `LLM_RETRY_BASE_SEC` 启用 API 重试退避，缓解抖动超时。
 - 建议安装 `sqlglot` 以启用本地 AST 安全网关（更严格地过滤危险 SQL）。
 

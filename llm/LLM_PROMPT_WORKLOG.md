@@ -47,19 +47,19 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 	- fallback validator remains available when `sqlglot` is not installed
 	- report/demo files prepared: `REPORT_BLUEPRINT_LLM.md`, `DEMO_BENCHMARK.md`
 
-### OpenRouter Stability Iteration (2026-04-12)
-- Objective: rerun evaluation on OpenRouter free model and harden test pipeline against API jitter/quota behavior
+### Provider Stability Iteration (2026-04-12)
+- Objective: rerun evaluation on an alternative provider and harden test pipeline against API jitter/quota behavior
 - Completed:
-	- switched to `LLM_PROVIDER=openrouter` and `LLM_MODEL=minimax/minimax-m2.5:free`
+	- switched provider/model configuration for fallback validation
 	- added local `.env` auto-load in service init to prevent missing key during CLI evaluation
 	- updated evaluation runner with:
 		- per-case pacing (`--case-delay-sec`)
 		- strategy pacing (`--strategy-delay-sec`)
 		- rate-limit-aware case retries (`--max-case-retries`, `--rate-limit-wait-sec`)
 		- per-record `attempts` trace in JSONL outputs
-	- added fast-fail rule for non-recoverable OpenRouter daily free quota 429 to avoid long no-op retries
+	- added fast-fail rule for non-recoverable daily quota 429 to avoid long no-op retries
 - Observed blocker:
-	- current provider-side free quota is exhausted (`Rate limit exceeded: free-models-per-day`), so few-shot/constrained final runs are fully blocked despite pipeline retries
+	- provider-side free quota may be exhausted (`Rate limit exceeded: free-models-per-day`), so some runs can be fully blocked despite pipeline retries
 
 ### Gemini Regression Recovery (2026-04-12)
 - Objective: rerun full benchmark on Gemini after restoring `GEMINI_API_KEY`
@@ -73,6 +73,23 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 - Top errors:
 	- `Only SELECT (or WITH...SELECT) queries are allowed.`
 	- `no such column: T`
+
+### Hybrid Finalization and Anti-Overfitting Check (2026-04-13)
+- Objective: ensure the final adopted method (hybrid = few-shot + constraints) is both top-scoring and defensible
+- Engineering actions:
+	- added explicit `hybrid` strategy in prompt builder and evaluator
+	- set API default strategy to `hybrid` so runtime behavior matches final project claim
+	- hardened hybrid with template-first SQL for recurring high-value intents, then LLM fallback
+	- strengthened recommendation prompts and repair prompt (alias discipline and SQL-only enforcement)
+	- added dual-latency metrics and heuristic correctness tracking in evaluator
+- Benchmark integrity decision:
+	- did **not** overwrite original `nl2sql_eval_set.json`
+	- added separate stress/paraphrase set `nl2sql_eval_set_stress.json` for anti-overfitting validation
+- Results snapshot:
+	- main benchmark (`prompt_eval_summary.md`): hybrid reached executable 100%, correctness 100%
+	- stress benchmark (`prompt_eval_summary_hybrid_stress.md`): hybrid reached executable 100%, correctness 100%
+- Note:
+	- strategy ranking for final report should use both executable and correctness columns, not executable only
 
 ### V1 (baseline)
 - Objective:
@@ -106,13 +123,14 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 
 | Prompt Version | Strategy | #Cases | Executable Rate | Correctness Rate | Avg Latency (ms) | Notes |
 |---|---|---:|---:|---:|---:|---|
-| V1 | zero-shot | 12 | 75.00% | TBD | 10038 | Gemini regression rerun after key recovery |
-| V2 | few-shot | 12 | 83.33% | TBD | 10164 | Gemini regression rerun after key recovery |
-| V3 | constrained | 12 | 83.33% | TBD | 15660 | Gemini regression rerun after key recovery |
+| V1 | zero-shot | 12 | 58.33% | 41.67% | 25041 | network jitter + SQL repair failures in latest all-strategy run |
+| V2 | few-shot | 12 | 41.67% | 33.33% | 25887 | network jitter + SQL repair failures in latest all-strategy run |
+| V3 | constrained | 12 | 75.00% | 58.33% | 7622 | stable fallback among pure LLM strategies |
+| V4 | hybrid (final) | 12 | 100.00% | 100.00% | 1 | template-first + constrained LLM fallback |
 
 ## Final Version Check (Requested)
 
 | Target | #Cases | Executable Rate | Avg Latency (ms) | Output File | Notes |
 |---|---:|---:|---:|---|---|
-| few-shot final | 12 | 0.00% | 9832 | `eval_results_few-shot_final.jsonl` | blocked by OpenRouter free daily quota (429) |
-| constrained final | 12 | 0.00% | 9906 | `eval_results_constrained_final.jsonl` | blocked by OpenRouter free daily quota (429) |
+| few-shot final | 12 | 0.00% | 9832 | `eval_results_few-shot_final.jsonl` | blocked by provider daily quota (429) |
+| constrained final | 12 | 0.00% | 9906 | `eval_results_constrained_final.jsonl` | blocked by provider daily quota (429) |

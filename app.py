@@ -1,7 +1,7 @@
 import sqlite3
 from flask import Flask, g, jsonify, abort, request
 from flask_cors import CORS
-from llm_service import LLMQueryService, LLMServiceError, SQLValidationError
+from llm.llm_service import LLMQueryService, LLMServiceError, SQLValidationError
 
 app = Flask(__name__)
 CORS(app)
@@ -306,7 +306,7 @@ def query_natural_language():
     """
     data = request.get_json(silent=True) or {}
     query = (data.get('query') or '').strip()
-        strategy = (data.get('strategy') or 'hybrid').strip()
+    strategy = (data.get('strategy') or 'hybrid').strip()
 
     if not query:
         abort(400, description='query is required')
@@ -336,7 +336,7 @@ def recommend_natural_language():
     """
     data = request.get_json(silent=True) or {}
     query = (data.get('query') or '').strip()
-        strategy = (data.get('strategy') or 'hybrid').strip()
+    strategy = (data.get('strategy') or 'hybrid').strip()
 
     if not query:
         abort(400, description='query is required')
