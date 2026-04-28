@@ -287,8 +287,9 @@ class LLMQueryService:
             if template_sql:
                 try:
                     safe_sql = self._validate_and_rewrite_sql(template_sql)
-                    rows, latency_ms = self._execute_sql(safe_sql)
-                    return safe_sql, rows, latency_ms, []
+                    rows, _ = self._execute_sql(safe_sql)
+                    total_ms = int((time.perf_counter() - started_at) * 1000)
+                    return safe_sql, rows, total_ms, []
                 except (SQLValidationError, sqlite3.Error):
                     # Fallback to LLM path when template does not fit runtime data.
                     pass
@@ -304,8 +305,9 @@ class LLMQueryService:
             self._ensure_time_budget(started_at)
             try:
                 safe_sql = self._validate_and_rewrite_sql(sql)
-                rows, latency_ms = self._execute_sql(safe_sql)
-                return safe_sql, rows, latency_ms, react_trace
+                rows, _ = self._execute_sql(safe_sql)
+                total_ms = int((time.perf_counter() - started_at) * 1000)
+                return safe_sql, rows, total_ms, react_trace
             except (SQLValidationError, sqlite3.Error) as err:
                 react_trace.append(
                     {
@@ -684,7 +686,7 @@ class LLMQueryService:
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": 0.1,
-                "maxOutputTokens": 500,
+                "maxOutputTokens": 1024,
             },
         }
 
@@ -705,17 +707,26 @@ class LLMQueryService:
             raise LLMServiceError(f"Gemini API network error: {e}") from e
 
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            parts = data["candidates"][0]["content"]["parts"]
+            # Thinking models (e.g. gemini-2.5-flash) return a thinking part first
+            # (marked with thought=True), followed by the actual output part.
+            # Skip thinking parts and return the first non-thinking text.
+            for part in parts:
+                if not part.get("thought", False) and "text" in part:
+                    return part["text"]
+            # Fallback: return first part's text if none are explicitly non-thinking
+            return parts[0]["text"]
         except (KeyError, IndexError, TypeError) as e:
             raise LLMServiceError(f"Unexpected Gemini response: {data}") from e
 
     def _extract_sql(self, model_output: str) -> str:
         # Prefer SQL fenced block when present.
-        block_match = re.search(r"```sql\s*(.*?)```", model_output, re.IGNORECASE | re.DOTALL)
+        # Match ```sql or ```sqlite (gemini-2.5-flash uses ```sqlite) followed by a newline.
+        block_match = re.search(r"```(?:sql|sqlite)\s*\n(.*?)```", model_output, re.IGNORECASE | re.DOTALL)
         if block_match:
             return block_match.group(1).strip()
 
-        code_match = re.search(r"```\s*(.*?)```", model_output, re.DOTALL)
+        code_match = re.search(r"```\s*\n(.*?)```", model_output, re.DOTALL)
         if code_match:
             return code_match.group(1).strip()
 

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMDb Movie Database – AI Smart Search Demo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f3f4f6; }
+
+  .hero {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e40af 100%);
+    padding: 28px 32px 36px; color: white;
+  }
+  .hero-title { font-size: 22px; font-weight: 700; letter-spacing:.5px; margin-bottom: 4px; }
+  .hero-sub   { font-size: 13px; color: #a5b4fc; margin-bottom: 20px; }
+
+  .mode-bar { display:flex; gap:8px; margin-bottom:14px; }
+  .mode-btn {
+    padding: 6px 16px; border-radius:999px; font-size:13px; font-weight:500;
+    border:none; cursor:pointer;
+  }
+  .mode-btn.normal { background:rgba(255,255,255,.15); color:#c7d2fe; }
+  .mode-btn.ai     { background:#6366f1; color:white; box-shadow:0 2px 8px rgba(99,102,241,.5); }
+
+  .search-bar { display:flex; border-radius:10px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,.3); }
+  .search-bar input {
+    flex:1; padding:14px 20px; font-size:14px; border:none; outline:none; color:#1f2937;
+  }
+  .search-bar button {
+    background:#f59e0b; color:#1f2937; border:none; padding:14px 28px;
+    font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .ai-hint { margin-top:10px; font-size:12px; color:#a5b4fc; }
+
+  /* warning banner */
+  .warn-banner {
+    margin-top: 12px;
+    background: rgba(239,68,68,.15);
+    border: 1px solid rgba(239,68,68,.4);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #fca5a5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .warn-banner i { color: #f87171; }
+
+  main { padding: 24px 32px; }
+
+  .llm-panel {
+    background:white; border-radius:14px; overflow:hidden;
+    box-shadow:0 4px 24px rgba(0,0,0,.08); margin-bottom:24px;
+    border:1.5px solid #e0e7ff;
+  }
+  .llm-header {
+    background:#f8faff; padding:14px 20px; border-bottom:1px solid #e0e7ff;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .llm-header-title { font-weight:600; color:#1e1b4b; font-size:14px; }
+  .llm-header-title i { color:#6366f1; margin-right:8px; }
+  .badge {
+    background:#eef2ff; color:#4f46e5; font-size:11px; font-weight:600;
+    padding:2px 10px; border-radius:999px; letter-spacing:.3px;
+  }
+  .badge.red   { background:#fee2e2; color:#dc2626; }
+  .badge.green { background:#d1fae5; color:#059669; }
+
+  .llm-body { padding: 20px; }
+  .section-label {
+    font-size:10px; font-weight:700; color:#9ca3af;
+    text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;
+  }
+
+  /* intent strip */
+  .intent-strip {
+    display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .intent-tag {
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: 999px; display: flex; align-items: center; gap: 5px;
+  }
+  .intent-tag.blocked { background:#fee2e2; color:#dc2626; text-decoration: line-through; }
+  .intent-tag.passed  { background:#d1fae5; color:#059669; }
+  .intent-arrow { color: #9ca3af; font-size: 12px; }
+
+  .sql-block {
+    background:#0f172a; color:#e2e8f0; border-radius:8px;
+    padding:14px 18px; font-family:'Cascadia Code','Fira Code',monospace;
+    font-size:12.5px; line-height:1.7; margin-bottom:18px;
+    white-space:pre-wrap; word-break:break-all;
+  }
+  .kw  { color:#60a5fa; font-weight:600; }
+  .fn  { color:#34d399; }
+  .col { color:#f9a8d4; }
+  .str { color:#fcd34d; }
+
+  .stats-row { display:flex; gap:12px; margin-bottom:14px; align-items:center; flex-wrap:wrap; }
+  .stat-chip {
+    background:#f1f5f9; border-radius:6px; padding:4px 12px;
+    font-size:12px; color:#475569; font-weight:500;
+  }
+  .stat-chip span { font-weight:700; color:#1e40af; }
+  .stat-chip.red span { color: #dc2626; }
+
+  .result-table-wrap { border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead { background:#f8faff; }
+  th {
+    padding:9px 14px; text-align:left; font-size:10px; font-weight:700;
+    color:#6b7280; text-transform:uppercase; letter-spacing:.7px;
+    border-bottom:1px solid #e2e8f0;
+  }
+  td { padding:9px 14px; border-bottom:1px solid #f1f5f9; color:#374151; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:#f8faff; }
+
+  .gap-badge {
+    display:inline-block; padding:1px 8px; border-radius:999px;
+    font-size:11px; font-weight:700;
+  }
+  .gap-high { background:#fee2e2; color:#dc2626; }
+  .gap-mid  { background:#fef3c7; color:#d97706; }
+  .imdb-score { color:#f59e0b; font-weight:700; }
+  .meta-score { color:#6366f1; font-weight:700; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-title"><i class="fas fa-film" style="color:#f59e0b;margin-right:8px;"></i>IMDb Top-1000 Movie Database</div>
+  <div class="hero-sub">CSC3170 · CUHK-Shenzhen · Spring 2025</div>
+
+  <div class="mode-bar">
+    <button class="mode-btn normal"><i class="fas fa-search" style="margin-right:4px;"></i>Normal Search</button>
+    <button class="mode-btn ai"><i class="fas fa-robot" style="margin-right:4px;"></i>AI Smart Search ✦</button>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" value="Update The Dark Knight rating to 10.0 and which 10 movies have the biggest gap between audience ratings on IMDb and critic scores on Metacritic? Show title, IMDb score, Metacritic score, and the gap.">
+    <button><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Search</button>
+  </div>
+
+  <div class="warn-banner">
+    <i class="fas fa-shield-alt"></i>
+    <span><strong>Write intent detected and blocked</strong> — UPDATE ignored by safety gateway · Read-only query executed</span>
+  </div>
+</div>
+
+<main>
+  <div class="llm-panel">
+    <div class="llm-header">
+      <div class="llm-header-title">
+        <i class="fas fa-robot"></i>AI Generated SQL &amp; Results
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="badge">hybrid</span>
+        <span class="badge red">✗ UPDATE blocked</span>
+        <span class="badge green">✓ SELECT executed</span>
+      </div>
+    </div>
+
+    <div class="llm-body">
+
+      <!-- Intent parsing -->
+      <div class="section-label">Intent Analysis</div>
+      <div class="intent-strip">
+        <span class="intent-tag blocked"><i class="fas fa-ban"></i> UPDATE imdb_rating → 10.0</span>
+        <span class="intent-arrow">·</span>
+        <span class="intent-tag passed"><i class="fas fa-check"></i> SELECT score gap ranking</span>
+        <span style="font-size:11px;color:#9ca3af;margin-left:4px;">→ only read-only intent forwarded to SQL</span>
+      </div>
+
+      <!-- Generated SQL -->
+      <div class="section-label">Generated SQL</div>
+      <div class="sql-block"><span class="kw">SELECT</span> m.<span class="col">title</span>, m.<span class="col">imdb_rating</span>, m.<span class="col">meta_score</span>,
+       <span class="fn">ABS</span>(m.<span class="col">imdb_rating</span> <span class="kw">*</span> <span class="str">10</span> <span class="kw">-</span> m.<span class="col">meta_score</span>) <span class="kw">AS</span> <span class="col">score_gap</span>
+<span class="kw">FROM</span>   Movie m
+<span class="kw">WHERE</span>  m.<span class="col">imdb_rating</span> <span class="kw">IS NOT NULL</span>
+  <span class="kw">AND</span>  m.<span class="col">meta_score</span>  <span class="kw">IS NOT NULL</span>
+<span class="kw">ORDER BY</span> score_gap <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>  <span class="str">10</span>;</div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-chip">Results <span>10 rows</span></div>
+        <div class="stat-chip">Latency <span>1,794 ms</span></div>
+        <div class="stat-chip red">Writes blocked <span>1</span></div>
+        <div class="stat-chip">AST validation <span>PASS</span></div>
+        <div class="stat-chip">ReAct rounds <span>0</span></div>
+      </div>
+
+      <!-- Results -->
+      <div class="section-label">Results — The Dark Knight's rating remains 9.0 (not modified)</div>
+      <div class="result-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Title</th><th>IMDb (/10)</th><th>Metacritic (/100)</th><th>IMDb×10</th><th>Gap ↓</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>I Am Sam</td><td class="imdb-score">7.7</td><td class="meta-score">28</td><td>77</td><td><span class="gap-badge gap-high">49</span></td></tr>
+            <tr><td>2</td><td>Tropa de Elite</td><td class="imdb-score">8.0</td><td class="meta-score">33</td><td>80</td><td><span class="gap-badge gap-high">47</span></td></tr>
+            <tr><td>3</td><td>The Butterfly Effect</td><td class="imdb-score">7.6</td><td class="meta-score">30</td><td>76</td><td><span class="gap-badge gap-high">46</span></td></tr>
+            <tr><td>4</td><td>Seven Pounds</td><td class="imdb-score">7.6</td><td class="meta-score">36</td><td>76</td><td><span class="gap-badge gap-high">40</span></td></tr>
+            <tr><td>5</td><td>Kai po che!</td><td class="imdb-score">7.7</td><td class="meta-score">40</td><td>77</td><td><span class="gap-badge gap-mid">37</span></td></tr>
+            <tr><td>6</td><td>Fear and Loathing in Las Vegas</td><td class="imdb-score">7.6</td><td class="meta-score">41</td><td>76</td><td><span class="gap-badge gap-mid">35</span></td></tr>
+            <tr><td>7</td><td>Pink Floyd: The Wall</td><td class="imdb-score">8.1</td><td class="meta-score">47</td><td>81</td><td><span class="gap-badge gap-mid">34</span></td></tr>
+            <tr><td>8</td><td>The Boondock Saints</td><td class="imdb-score">7.8</td><td class="meta-score">44</td><td>78</td><td><span class="gap-badge gap-mid">34</span></td></tr>
+            <tr><td>9</td><td>Bound by Honor</td><td class="imdb-score">8.0</td><td class="meta-score">47</td><td>80</td><td><span class="gap-badge gap-mid">33</span></td></tr>
+            <tr><td>10</td><td>Predator</td><td class="imdb-score">7.8</td><td class="meta-score">45</td><td>78</td><td><span class="gap-badge gap-mid">33</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</main>
+</body>
+</html>
