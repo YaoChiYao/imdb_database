@@ -114,7 +114,117 @@ python app.py
 
 ---
 
-### 1. 获取电影列表
+### 1. 获取单部电影详情
+
+| 项目     | 内容                     |
+|----------|--------------------------|
+| Method   | `GET`                    |
+| Endpoint | `/api/movies/<id>`       |
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `id` | int  | 电影的 `movie_id` |
+
+返回电影的完整详情，包含导演名、演员列表及类型列表。
+
+**请求示例**
+
+```
+GET http://127.0.0.1:7777/api/movies/1
+```
+
+**返回示例**
+
+```json
+{
+    "certificate": "A",
+    "director_id": 1,
+    "director_name": "Frank Darabont",
+    "gross": 28341469.0,
+    "imdb_rating": 9.3,
+    "meta_score": 80.0,
+    "movie_id": 1,
+    "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
+    "poster_link": "https://m.media-amazon.com/images/...",
+    "runtime": 142,
+    "title": "The Shawshank Redemption",
+    "votes": 2343110,
+    "year": 1994,
+    "actors": [
+        { "actor_id": 1, "actor_name": "Tim Robbins" },
+        { "actor_id": 2, "actor_name": "Morgan Freeman" }
+    ],
+    "genres": [
+        { "genre_id": 1, "genre": "Drama" }
+    ]
+}
+```
+
+**错误响应（电影不存在）**
+
+```json
+{ "error": "电影 ID 999 不存在" }
+```
+
+HTTP 状态码：`404`
+
+---
+
+### 2. 按类型筛选电影列表
+
+| 项目     | 内容                            |
+|----------|---------------------------------|
+| Method   | `GET`                           |
+| Endpoint | `/api/movies/genre/<genre>`     |
+
+**路径参数**
+
+| 参数    | 类型   | 说明                   |
+|---------|--------|------------------------|
+| `genre` | string | 类型名称，如 `Drama`、`Action` |
+
+返回属于该类型的所有电影，包含导演名，按 `imdb_rating` 降序排列。
+
+**请求示例**
+
+```
+GET http://127.0.0.1:7777/api/movies/genre/Drama
+GET http://127.0.0.1:7777/api/movies/genre/Action
+```
+
+**返回示例**
+
+```json
+[
+    {
+        "certificate": "A",
+        "director_name": "Frank Darabont",
+        "gross": 28341469.0,
+        "imdb_rating": 9.3,
+        "movie_id": 1,
+        "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
+        "poster_link": "https://m.media-amazon.com/images/...",
+        "runtime": 142,
+        "title": "The Shawshank Redemption",
+        "votes": 2343110,
+        "year": 1994
+    }
+]
+```
+
+**错误响应（类型不存在）**
+
+```json
+{ "error": "类型 \"Thriller\" 不存在" }
+```
+
+HTTP 状态码：`404`
+
+---
+
+### 3. 获取电影列表
 
 | 项目 | 内容 |
 |------|------|
@@ -158,7 +268,7 @@ GET http://127.0.0.1:7777/api/movies?limit=5&offset=0
 
 ---
 
-### 2. 获取指定导演的所有电影
+### 4. 获取指定导演的所有电影
 
 | 项目 | 内容 |
 |------|------|
@@ -227,7 +337,7 @@ HTTP 状态码：`404`
 
 ---
 
-### 3. 统计各类型电影数量
+### 5. 统计各类型电影数量
 
 | 项目 | 内容 |
 |------|------|
@@ -265,7 +375,7 @@ GET http://127.0.0.1:7777/api/stats/genres
 
 ---
 
-### 4. 获取评分最高的电影 Top N
+### 6. 获取评分最高的电影 Top N
 
 | 项目     | 内容              |
 |----------|-------------------|
@@ -317,7 +427,7 @@ HTTP 状态码：`400`
 
 ---
 
-### 5. 按类型统计平均评分
+### 7. 按类型统计平均评分
 
 | 项目     | 内容                       |
 |----------|----------------------------|
@@ -355,7 +465,7 @@ GET http://127.0.0.1:7777/api/stats/genres/rating
 
 ---
 
-### 6. 根据演员 ID 查询参演电影
+### 8. 根据演员 ID 查询参演电影
 
 | 项目     | 内容                          |
 |----------|-------------------------------|
