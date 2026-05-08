@@ -1,11 +1,11 @@
-# IMDB Movie Database — API 文档
+# IMDB Movie Database — API Documentation
 
 **Backend**: Flask + SQLite (`movies.db`)
 **Base URL**: `http://127.0.0.1:7777`
 
 ---
 
-## 启动说明
+## Getting Started
 
 ```bash
 python3 -m venv .venv
@@ -16,26 +16,26 @@ cp .env.example .env
 python app.py
 ```
 
-服务默认运行在 `http://127.0.0.1:7777`，debug 模式开启。
+The server runs at `http://127.0.0.1:7777` with debug mode enabled.
 
-说明：
-- 推荐使用 Gemini：`LLM_PROVIDER=gemini` + `GEMINI_API_KEY`。
-- 当前默认模型可设置为 `LLM_MODEL=gemini-3-flash-preview`（或 `GEMINI_MODEL`）。
-- 可通过 `LLM_MAX_RETRIES` 与 `LLM_RETRY_BASE_SEC` 启用 API 重试退避，缓解抖动超时。
-- 建议安装 `sqlglot` 以启用本地 AST 安全网关（更严格地过滤危险 SQL）。
+Notes:
+- Recommended LLM provider: `LLM_PROVIDER=gemini` + `GEMINI_API_KEY`.
+- Default model can be set via `LLM_MODEL=gemini-3-flash-preview` (or `GEMINI_MODEL`).
+- API retry backoff can be enabled via `LLM_MAX_RETRIES` and `LLM_RETRY_BASE_SEC` to handle transient timeouts.
+- Installing `sqlglot` is recommended to enable the local AST safety gateway for stricter dangerous SQL filtering.
 
 ---
 
-## 接口列表
+## Endpoints
 
-### 0. 自然语言转 SQL 查询（LLM）
+### 0. Natural Language to SQL Query (LLM)
 
-| 项目 | 内容 |
-|------|------|
-| Method | `POST` |
-| Endpoint | `/api/query/nl` |
+| Field    | Value             |
+|----------|-------------------|
+| Method   | `POST`            |
+| Endpoint | `/api/query/nl`   |
 
-**请求体**
+**Request Body**
 
 ```json
 {
@@ -44,10 +44,10 @@ python app.py
 }
 ```
 
-- `query`：自然语言问题（必填）
-- `strategy`：提示词策略（可选），可取 `zero-shot` / `few-shot` / `constrained` / `hybrid`，默认 `hybrid`（最终实践版本）
+- `query`: Natural language question (required)
+- `strategy`: Prompt strategy (optional). One of `zero-shot` / `few-shot` / `constrained` / `hybrid`. Defaults to `hybrid` (recommended).
 
-**返回示例（成功）**
+**Success Response**
 
 ```json
 {
@@ -69,18 +69,18 @@ python app.py
 }
 ```
 
-**可靠性机制**
+**Reliability Mechanisms**
 
-- 本地 AST 安全网关（推荐安装 `sqlglot`）：
-    - 仅允许 `SELECT` / `WITH ... SELECT`
-    - 拦截 `DROP/DELETE/TRUNCATE/UPDATE/INSERT/ALTER/CREATE` 等破坏性语句
-    - 仅允许白名单表
-    - 自动补齐 `LIMIT`（非聚合列表查询）
-- ReAct 修正循环：
-    - 若解析失败或执行报错，系统将错误信息反馈给模型并请求重写 SQL
-    - 返回 `react_trace` 记录每轮失败 SQL 与报错
+- Local AST safety gateway (requires `sqlglot`):
+    - Only allows `SELECT` / `WITH ... SELECT`
+    - Blocks destructive statements: `DROP/DELETE/TRUNCATE/UPDATE/INSERT/ALTER/CREATE`
+    - Whitelist-only table access
+    - Automatically appends `LIMIT` for non-aggregate list queries
+- ReAct correction loop:
+    - If SQL parsing or execution fails, the error is fed back to the model for SQL rewrite
+    - `react_trace` records each failed SQL attempt and its error
 
-**返回示例（失败）**
+**Error Response**
 
 ```json
 {
@@ -94,14 +94,14 @@ python app.py
 
 ---
 
-### 0.1 自然语言推荐查询（LLM）
+### 0.1 Natural Language Recommendation Query (LLM)
 
-| 项目 | 内容 |
-|------|------|
-| Method | `POST` |
-| Endpoint | `/api/recommend/nl` |
+| Field    | Value                  |
+|----------|------------------------|
+| Method   | `POST`                 |
+| Endpoint | `/api/recommend/nl`    |
 
-**请求体**
+**Request Body**
 
 ```json
 {
@@ -110,32 +110,142 @@ python app.py
 }
 ```
 
-响应结构与 `/api/query/nl` 一致，主要区别在于提示词会偏向推荐结果排序。
+Response structure is identical to `/api/query/nl`. The main difference is that the prompt is tuned toward recommendation ranking.
 
 ---
 
-### 1. 获取电影列表
+### 1. Get Movie Details
 
-| 项目 | 内容 |
-|------|------|
-| Method | `GET` |
-| Endpoint | `/api/movies` |
+| Field    | Value                  |
+|----------|------------------------|
+| Method   | `GET`                  |
+| Endpoint | `/api/movies/<id>`     |
 
-**Query 参数**
+**Path Parameters**
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `limit` | int | 10 | 返回条数 |
-| `offset` | int | 0 | 分页偏移 |
+| Parameter | Type | Description          |
+|-----------|------|----------------------|
+| `id`      | int  | The movie's `movie_id` |
 
-**请求示例**
+Returns full details for a movie, including director name, actor list, and genre list.
+
+**Request Example**
+
+```
+GET http://127.0.0.1:7777/api/movies/1
+```
+
+**Response Example**
+
+```json
+{
+    "certificate": "A",
+    "director_id": 1,
+    "director_name": "Frank Darabont",
+    "gross": 28341469.0,
+    "imdb_rating": 9.3,
+    "meta_score": 80.0,
+    "movie_id": 1,
+    "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
+    "poster_link": "https://m.media-amazon.com/images/...",
+    "runtime": 142,
+    "title": "The Shawshank Redemption",
+    "votes": 2343110,
+    "year": 1994,
+    "actors": [
+        { "actor_id": 1, "actor_name": "Tim Robbins" },
+        { "actor_id": 2, "actor_name": "Morgan Freeman" }
+    ],
+    "genres": [
+        { "genre_id": 1, "genre": "Drama" }
+    ]
+}
+```
+
+**Error Response (Movie Not Found)**
+
+```json
+{ "error": "Movie ID 999 not found" }
+```
+
+HTTP Status: `404`
+
+---
+
+### 2. Filter Movies by Genre
+
+| Field    | Value                           |
+|----------|---------------------------------|
+| Method   | `GET`                           |
+| Endpoint | `/api/movies/genre/<genre>`     |
+
+**Path Parameters**
+
+| Parameter | Type   | Description                        |
+|-----------|--------|------------------------------------|
+| `genre`   | string | Genre name, e.g. `Drama`, `Action` |
+
+Returns all movies in the specified genre, including director name, sorted by `imdb_rating` descending.
+
+**Request Examples**
+
+```
+GET http://127.0.0.1:7777/api/movies/genre/Drama
+GET http://127.0.0.1:7777/api/movies/genre/Action
+```
+
+**Response Example**
+
+```json
+[
+    {
+        "certificate": "A",
+        "director_name": "Frank Darabont",
+        "gross": 28341469.0,
+        "imdb_rating": 9.3,
+        "movie_id": 1,
+        "overview": "Two imprisoned men bond over a number of years, finding solace and eventual redemption through acts of common decency.",
+        "poster_link": "https://m.media-amazon.com/images/...",
+        "runtime": 142,
+        "title": "The Shawshank Redemption",
+        "votes": 2343110,
+        "year": 1994
+    }
+]
+```
+
+**Error Response (Genre Not Found)**
+
+```json
+{ "error": "Genre \"Thriller\" not found" }
+```
+
+HTTP Status: `404`
+
+---
+
+### 3. List Movies
+
+| Field    | Value          |
+|----------|----------------|
+| Method   | `GET`          |
+| Endpoint | `/api/movies`  |
+
+**Query Parameters**
+
+| Parameter | Type | Default | Description        |
+|-----------|------|---------|--------------------|
+| `limit`   | int  | 10      | Number of results  |
+| `offset`  | int  | 0       | Pagination offset  |
+
+**Request Examples**
 
 ```
 GET http://127.0.0.1:7777/api/movies
 GET http://127.0.0.1:7777/api/movies?limit=5&offset=0
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 [
@@ -158,26 +268,26 @@ GET http://127.0.0.1:7777/api/movies?limit=5&offset=0
 
 ---
 
-### 2. 获取指定导演的所有电影
+### 4. Get All Movies by Director
 
-| 项目 | 内容 |
-|------|------|
-| Method | `GET` |
-| Endpoint | `/api/movies/director/<id>` |
+| Field    | Value                          |
+|----------|--------------------------------|
+| Method   | `GET`                          |
+| Endpoint | `/api/movies/director/<id>`    |
 
-**路径参数**
+**Path Parameters**
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `id` | int | 导演的 `director_id` |
+| Parameter | Type | Description              |
+|-----------|------|--------------------------|
+| `id`      | int  | The director's `director_id` |
 
-**请求示例**
+**Request Example**
 
 ```
 GET http://127.0.0.1:7777/api/movies/director/1
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 {
@@ -217,32 +327,32 @@ GET http://127.0.0.1:7777/api/movies/director/1
 }
 ```
 
-**错误响应（导演不存在）**
+**Error Response (Director Not Found)**
 
 ```json
-{ "error": "导演 ID 999 不存在" }
+{ "error": "Director ID 999 not found" }
 ```
 
-HTTP 状态码：`404`
+HTTP Status: `404`
 
 ---
 
-### 3. 统计各类型电影数量
+### 5. Genre Movie Count Statistics
 
-| 项目 | 内容 |
-|------|------|
-| Method | `GET` |
+| Field    | Value               |
+|----------|---------------------|
+| Method   | `GET`               |
 | Endpoint | `/api/stats/genres` |
 
-无参数。Genre 在建表时已拆分为独立表（`Genre` + `Movie_Genre`），直接 JOIN 统计，无需字符串分割。
+No parameters. Genres are stored in a separate table (`Genre` + `Movie_Genre`) and counted via JOIN — no string splitting required.
 
-**请求示例**
+**Request Example**
 
 ```
 GET http://127.0.0.1:7777/api/stats/genres
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 [
@@ -261,33 +371,33 @@ GET http://127.0.0.1:7777/api/stats/genres
 ]
 ```
 
-结果按 `movie_count` 降序排列。
+Results sorted by `movie_count` descending.
 
 ---
 
-### 4. 获取评分最高的电影 Top N
+### 6. Top N Highest-Rated Movies
 
-| 项目     | 内容              |
-|----------|-------------------|
-| Method   | `GET`             |
-| Endpoint | `/api/movies/top` |
+| Field    | Value              |
+|----------|--------------------|
+| Method   | `GET`              |
+| Endpoint | `/api/movies/top`  |
 
-**Query 参数**
+**Query Parameters**
 
-| 参数    | 类型 | 默认值 | 说明                  |
-|---------|------|--------|-----------------------|
-| `top_n` | int  | 10     | 返回条数，范围 1 ~ 100 |
+| Parameter | Type | Default | Description               |
+|-----------|------|---------|---------------------------|
+| `top_n`   | int  | 10      | Number of results (1–100) |
 
-评分相同时按 `votes`（投票数）降序排列。
+Ties in rating are broken by `votes` descending.
 
-**请求示例**
+**Request Examples**
 
 ```
 GET http://127.0.0.1:7777/api/movies/top
 GET http://127.0.0.1:7777/api/movies/top?top_n=5
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 [
@@ -307,32 +417,32 @@ GET http://127.0.0.1:7777/api/movies/top?top_n=5
 ]
 ```
 
-**错误响应**
+**Error Response**
 
 ```json
-{ "error": "top_n 范围为 1 ~ 100" }
+{ "error": "top_n must be between 1 and 100" }
 ```
 
-HTTP 状态码：`400`
+HTTP Status: `400`
 
 ---
 
-### 5. 按类型统计平均评分
+### 7. Average Rating by Genre
 
-| 项目     | 内容                       |
-|----------|----------------------------|
-| Method   | `GET`                      |
-| Endpoint | `/api/stats/genres/rating` |
+| Field    | Value                       |
+|----------|-----------------------------|
+| Method   | `GET`                       |
+| Endpoint | `/api/stats/genres/rating`  |
 
-无参数。联结 `Genre`、`Movie_Genre`、`Movie` 三表，计算每个类型的平均 `imdb_rating` 及电影总数，结果按平均分降序排列。
+No parameters. Joins `Genre`, `Movie_Genre`, and `Movie` to compute the average `imdb_rating` and total movie count per genre, sorted by average rating descending.
 
-**请求示例**
+**Request Example**
 
 ```
 GET http://127.0.0.1:7777/api/stats/genres/rating
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 [
@@ -351,32 +461,32 @@ GET http://127.0.0.1:7777/api/stats/genres/rating
 ]
 ```
 
-结果按 `avg_rating` 降序排列。
+Results sorted by `avg_rating` descending.
 
 ---
 
-### 6. 根据演员 ID 查询参演电影
+### 8. Get Movies by Actor ID
 
-| 项目     | 内容                          |
-|----------|-------------------------------|
-| Method   | `GET`                         |
-| Endpoint | `/api/stats/actors/<actor_id>` |
+| Field    | Value                           |
+|----------|---------------------------------|
+| Method   | `GET`                           |
+| Endpoint | `/api/stats/actors/<actor_id>`  |
 
-**路径参数**
+**Path Parameters**
 
-| 参数       | 类型 | 说明          |
-|------------|------|---------------|
-| `actor_id` | int  | 演员的 `actor_id` |
+| Parameter  | Type | Description           |
+|------------|------|-----------------------|
+| `actor_id` | int  | The actor's `actor_id` |
 
-返回该演员的基本信息、参演电影总数、平均评分，以及完整的参演电影列表（含导演名），按 `imdb_rating` 降序排列。
+Returns the actor's basic info, total movie count, average rating, and full filmography (with director names), sorted by `imdb_rating` descending.
 
-**请求示例**
+**Request Example**
 
 ```
 GET http://127.0.0.1:7777/api/stats/actors/12
 ```
 
-**返回示例**
+**Response Example**
 
 ```json
 {
@@ -417,21 +527,25 @@ GET http://127.0.0.1:7777/api/stats/actors/12
 }
 ```
 
-**错误响应（演员不存在）**
+**Error Response (Actor Not Found)**
 
 ```json
-{ "error": "演员 ID 999 不存在" }
+{ "error": "Actor ID 999 not found" }
 ```
 
-HTTP 状态码：`404`
+HTTP Status: `404`
 
-所有错误统一返回以下结构：
+---
+
+## Error Format
+
+All errors follow this structure:
 
 ```json
-{ "error": "错误描述" }
+{ "error": "Error description" }
 ```
 
-| 状态码 | 含义                              |
-|--------|-----------------------------------|
-| 400    | 请求参数错误（如 limit 传了非整数） |
-| 404    | 资源不存在（如导演 ID 不存在）      |
+| Status Code | Meaning                                              |
+|-------------|------------------------------------------------------|
+| 400         | Bad request parameters (e.g. non-integer `limit`)   |
+| 404         | Resource not found (e.g. director ID does not exist) |
