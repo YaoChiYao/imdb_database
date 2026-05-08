@@ -6,7 +6,7 @@ from llm.llm_service import LLMQueryService, LLMServiceError, SQLValidationError
 app = Flask(__name__)
 CORS(app)
 
-DB_PATH = 'movies.db'
+DB_PATH = '../movies.db'
 llm_query_service = LLMQueryService(db_path=DB_PATH)
 
 

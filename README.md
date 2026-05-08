@@ -1,19 +1,17 @@
-# IMDB 电影数据库项目
+# IMDB Movie Database Project
 
-一个全栈电影数据库 Web 应用，支持电影浏览、搜索、用户评分收藏，以及 AI 智能问答功能。
+A full-stack movie database web application that supports browsing, searching, user ratings and favorites, and AI-powered Q&A functionality.
 
-## 技术栈
+## Tech Stack
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | React + Vite + React Router |
-| 后端 | Flask + Flask-CORS |
-| 数据库 | MySQL |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React + Vite + React Router |
+| Backend | Flask + Flask-CORS |
+| Database | MySQL |
 | AI | Anthropic Claude API |
 
----
-
-## 项目结构
+## Project Structure
 
 ```
 imdb_database/
@@ -65,19 +63,18 @@ imdb_database/
 
 ---
 
-## 主要功能
 
-- **电影浏览**：分页展示电影列表，支持按标题、类型、年份筛选和搜索
-- **电影详情**：查看电影详细信息、用户评论和评分
-- **用户系统**：注册、登录（JWT 认证）、个人资料页
-- **收藏与评分**：登录用户可收藏电影、提交评分和评论
-- **AI 问答**：集成 Claude API，支持自然语言查询电影相关信息
+## Main Features
 
----
+- **Movie Browsing**: Paginated movie list with filtering by title, genre, and year, plus search functionality  
+- **Movie Details**: View detailed information, user reviews, and ratings  
+- **User System**: Register, login (JWT authentication), and profile page  
+- **Favorites and Ratings**: Logged-in users can favorite movies, submit ratings, and leave reviews  
+- **AI Q&A**: Integrated Claude API for natural language queries about movies  
 
-## 快速启动
+## Quick Start
 
-### 后端
+### Backend
 
 ```bash
 cd backend
@@ -85,23 +82,18 @@ pip install -r requirements.txt
 python app.py
 ```
 
-后端默认运行在 `http://localhost:5000`
-
-### 前端
+### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-前端默认运行在 `http://localhost:5173`，已配置代理将 `/api` 请求转发至后端。
-
 ---
 
-## 环境配置
+## Environment Configuration
 
-在 `backend/config.py` 中配置以下内容：
+In backend/config.py, set the following:
 
 ```python
 DB_HOST = "localhost"
@@ -114,17 +106,6 @@ CLAUDE_API_KEY = "your_anthropic_api_key"
 
 ---
 
-## API 文档
+## API Documentation
 
-完整 API 文档见 `apidoc/index.html`，主要接口：
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/movies` | 获取电影列表（支持分页、筛选） |
-| GET | `/api/movies/:id` | 获取电影详情 |
-| POST | `/api/users/register` | 用户注册 |
-| POST | `/api/users/login` | 用户登录 |
-| GET | `/api/users/profile` | 获取当前用户信息 |
-| POST | `/api/users/favorites` | 添加收藏 |
-| POST | `/api/movies/:id/reviews` | 提交评分/评论 |
-| POST | `/api/ai/chat` | AI 问答 |
+Full API documentation is available at ./backend/API_DOC.md
