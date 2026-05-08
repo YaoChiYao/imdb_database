@@ -91,6 +91,43 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 - Note:
 	- strategy ranking for final report should use both executable and correctness columns, not executable only
 
+### V2 Eval Set Rebuild + Gemini AI Studio Migration (2026-04-27)
+
+- Objective: replace trivially-easy eval set (all strategies 100%) with a harder, more discriminating benchmark; migrate API from OpenRouter to Gemini AI Studio
+
+**API Migration:**
+- Switched from OpenRouter proxy to Gemini AI Studio direct API (`generativelanguage.googleapis.com/v1beta`)
+- Model: `gemini-2.5-flash-preview-04-17` (thinking model — requires `thinkingConfig: {thinkingBudget: 0}` to suppress reasoning tokens and `maxOutputTokens: 1024` to avoid cutoff)
+- `.env` key: `GEMINI_API_KEY` (in `imdb_database/.env`)
+
+**Eval Set v2 (`nl2sql_eval_set_v2.json`):**
+- 15 cases total vs. 12 in v1
+- Easy (3): top-5 by rating, genre movie count, 2019 movies >7.5
+- Medium (5): actors >3 movies (HAVING), avg Metacritic by genre (tests `meta_score` column), top-5 directors, votes >1M, Drama AND Crime double-join
+- Hard (4): compound HAVING (directors avg >8.0), MIN HAVING (actors exclusively >8.0), best-movie-per-genre (correlated subquery), movies above genre avg (correlated subquery)
+- Adversarial (3): UPDATE injection (blocked=correct), DROP injection (blocked=correct), "no limit" case (must emit LIMIT keyword)
+- Correctness validation: keyword check + row count check (±20% of reference count OR within stated range)
+
+**Results (all 15 cases, 4 strategies):**
+
+| Strategy | Correct | Correctness Rate | Executable Rate | Avg Latency (ms) |
+|---|---:|---:|---:|---:|
+| zero-shot | 15/15 | 100.00% | 100.00% | ~2000 |
+| few-shot | 14/15 | 93.33% | 100.00% | ~2000 |
+| constrained | 14/15 | 93.33% | 100.00% | ~2000 |
+| hybrid | 14/15 | 93.33% | 100.00% | ~2000 |
+
+**Failure analysis — Case 11** ("For each genre, find the highest-rated movie"):
+- zero-shot: returned 21 rows (matches reference) — PASS
+- few-shot/constrained/hybrid: generated tuple-IN-subquery pattern `WHERE (genre_id, imdb_rating) IN (SELECT genre_id, MAX(...))` — valid SQL, but returns 26 rows when multiple movies tie at the max rating per genre; reference has 21 rows; 26 > 25 (upper bound) and 23.8% off reference (> 20% tolerance) → FAIL
+- Root cause: correctness evaluator uses strict row-range [15,25] + 20% reference tolerance; tied-max expansion exceeds both thresholds
+
+**Ongoing:**
+- Eval set still not fully discriminating (100% vs 93.3% is narrow gap; zero-shot wins by accident on case 11 due to simpler GROUP BY pattern)
+- Consider widening expected_row_range for case 11 to [15, 30] to accept tie-expansion as semantically correct
+
+---
+
 ### V1 (baseline)
 - Objective:
 - Key instructions:
@@ -134,3 +171,12 @@ Use this file to maintain complete prompt exploration evidence for the report ap
 |---|---:|---:|---:|---|---|
 | few-shot final | 12 | 0.00% | 9832 | `eval_results_few-shot_final.jsonl` | blocked by provider daily quota (429) |
 | constrained final | 12 | 0.00% | 9906 | `eval_results_constrained_final.jsonl` | blocked by provider daily quota (429) |
+
+## V2 Eval Results (2026-04-27, Gemini AI Studio, 15 cases)
+
+| Strategy | #Cases | Correct | Correctness Rate | Executable Rate | Avg Latency (ms) | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| zero-shot | 15 | 15 | 100.00% | 100.00% | ~2000 | passes case 11 via simpler GROUP BY |
+| few-shot | 15 | 14 | 93.33% | 100.00% | ~2000 | fails case 11 (tuple-IN returns 26 rows) |
+| constrained | 15 | 14 | 93.33% | 100.00% | ~2000 | fails case 11 (same as few-shot) |
+| hybrid | 15 | 14 | 93.33% | 100.00% | ~2000 | fails case 11 (same as few-shot) |

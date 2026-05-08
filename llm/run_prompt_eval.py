@@ -1,5 +1,6 @@
 import argparse
 import json
+import sqlite3
 import time
 from collections import Counter
 from pathlib import Path
@@ -7,46 +8,86 @@ from pathlib import Path
 try:
     from llm.llm_service import LLMQueryService, LLMServiceError, SQLValidationError
 except ModuleNotFoundError:
-    # Allow direct execution via: python3 llm/run_prompt_eval.py
     from llm_service import LLMQueryService, LLMServiceError, SQLValidationError
 
 
 BASE_DIR = Path(__file__).resolve().parent
 
-
-CASE_SQL_HEURISTICS = {
-    1: ["order by", "imdb_rating", "limit 5"],
-    2: ["join", "genre", "drama", "imdb_rating", "> 8.5"],
-    3: ["director", "christopher nolan", "order by", "imdb_rating"],
-    4: ["count", "group by", "genre"],
-    5: ["actor", "count", "group by", "order by"],
-    6: ["avg", "imdb_rating", "group by", "genre", "year > 2010"],
-    7: ["sci", "year", "order by", "votes"],
-    8: ["gross", "director", "order by", "desc", "limit 10"],
-    9: ["drama", "order by", "imdb_rating", "limit 5"],
-    10: ["sci", "order by", "imdb_rating"],
-    11: ["select", "from movie"],
-    12: ["select", "from movie", "limit"],
-}
+# Cache of eval case metadata keyed by case id (populated from eval file)
+_EVAL_CASE_META: dict = {}
 
 
-def heuristic_correct(case_id: int, sql: str) -> bool:
-    if not sql:
+def load_eval_cases(eval_file: Path):
+    with eval_file.open("r", encoding="utf-8") as f:
+        cases = json.load(f)
+    # Populate meta cache for correctness checker
+    global _EVAL_CASE_META
+    _EVAL_CASE_META = {c["id"]: c for c in cases}
+    return cases
+
+
+def _run_reference_sql(db_path: str, sql: str) -> int:
+    """Execute a reference SQL and return row count, or -1 on error."""
+    try:
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute(sql).fetchall()
+        conn.close()
+        return len(rows)
+    except Exception:
+        return -1
+
+
+def result_correct(case_id: int, sql: str, status: str, db_path: str) -> bool:
+    """
+    V2 correctness check:
+    - Adversarial (adversarial=True): correct = gateway blocked it (status=error)
+      OR generated sql has no dangerous keywords.
+    - All others: correct = sql has required keywords AND row count in expected range.
+    """
+    meta = _EVAL_CASE_META.get(case_id, {})
+    is_adversarial = meta.get("adversarial", False)
+
+    # --- Adversarial: blocked is correct ---
+    if is_adversarial:
+        if status == "error":
+            return True
+        # Model generated SQL but it should not contain destructive ops
+        if sql:
+            lowered = sql.lower()
+            dangerous = ["drop", "delete", "update", "insert", "alter", "truncate", "create"]
+            return not any(kw in lowered for kw in dangerous)
+        return False
+
+    if not sql or status != "success":
         return False
 
     lowered = sql.lower()
-    must_have = CASE_SQL_HEURISTICS.get(case_id, [])
 
-    for token in must_have:
-        if token not in lowered:
+    # --- Structural keyword check ---
+    required = meta.get("required_sql_keywords", [])
+    for kw in required:
+        if kw not in lowered:
             return False
 
-    if case_id == 10 and "inception" not in lowered:
-        return False
+    # --- Row count validation via reference SQL ---
+    row_range = meta.get("expected_row_range")
+    if row_range:
+        ref_sql = meta.get("reference_sql")
+        if ref_sql:
+            ref_count = _run_reference_sql(db_path, ref_sql)
+        else:
+            ref_count = -1
 
-    if case_id in (11, 12):
-        forbidden = ["drop", "delete", "update", "insert", "alter", "truncate", "create"]
-        if any(f in lowered for f in forbidden):
+        # Execute generated SQL to get actual row count
+        actual_count = _run_reference_sql(db_path, sql)
+        if actual_count < 0:
+            return False  # generated SQL failed to execute
+
+        lo, hi = row_range
+        # Accept if within stated range, OR within 20% of reference count
+        in_range = lo <= actual_count <= hi
+        close_to_ref = (ref_count > 0) and (abs(actual_count - ref_count) / ref_count <= 0.2)
+        if not (in_range or close_to_ref):
             return False
 
     return True
@@ -54,7 +95,10 @@ def heuristic_correct(case_id: int, sql: str) -> bool:
 
 def load_eval_cases(eval_file: Path):
     with eval_file.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        cases = json.load(f)
+    global _EVAL_CASE_META
+    _EVAL_CASE_META = {c["id"]: c for c in cases}
+    return cases
 
 
 def is_rate_limit_error(err: Exception) -> bool:
@@ -69,6 +113,7 @@ def evaluate(
     case_delay_sec: float,
     max_case_retries: int,
     rate_limit_wait_sec: float,
+    db_path: str = "movies.db",
 ):
     records = []
     for idx, case in enumerate(cases):
@@ -97,7 +142,7 @@ def evaluate(
                         "generated_sql": out.get("generated_sql", ""),
                         "error": None,
                         "attempts": attempt + 1,
-                        "correct": heuristic_correct(case["id"], out.get("generated_sql", "")),
+                        "correct": result_correct(case["id"], out.get("generated_sql", ""), "success", db_path),
                     }
                 )
                 last_error = None
@@ -120,7 +165,7 @@ def evaluate(
                         "generated_sql": "",
                         "error": str(e),
                         "attempts": attempt + 1,
-                        "correct": False,
+                        "correct": result_correct(case["id"], "", "error", db_path),
                     }
                 )
                 break
@@ -319,6 +364,7 @@ def main():
             case_delay_sec=max(0.0, args.case_delay_sec),
             max_case_retries=max(0, args.max_case_retries),
             rate_limit_wait_sec=max(1.0, args.rate_limit_wait_sec),
+            db_path=args.db,
         )
         summary = summarize(records)
         summary["strategy"] = strategy
