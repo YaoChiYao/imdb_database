@@ -17,7 +17,7 @@ A full-stack movie database web application that supports browsing, searching, u
 - **Movie Details**: View detailed information, user reviews, and ratings  
 - **User System**: Register, login (JWT authentication), and profile page  
 - **Favorites and Ratings**: Logged-in users can favorite movies, submit ratings, and leave reviews  
-- **AI Q&A**: Integrated Claude API for natural language queries about movies  
+- **AI Q&A**: Integrated Gemini API for natural language queries about movies  
 
 ## Quick Start
 
